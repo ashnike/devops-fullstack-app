@@ -1,0 +1,30 @@
+replicaCount: 1
+image:
+  repository: postgres
+  tag: "17.0-alpine3.20"
+  pullPolicy: IfNotPresent
+
+service:
+  type: ClusterIP
+  port: 5432
+
+env:
+  PGDATA: /var/lib/postgresql/pgdata/data
+  POSTGRES_USER: employee_user
+  POSTGRES_PASSWORD: password
+  POSTGRES_DB: employee_db
+
+resources: # Resource requests and limits for the PostgreSQL pod
+    requests:
+      memory: "256Mi"
+      cpu: "250m"
+    limits:
+      memory: "512Mi"
+      cpu: "500m"
+
+persistence:
+  enabled: true
+  storageClass: "gp2"
+  accessMode: ReadWriteOnce
+  size: 2Gi
+  mountPath: /var/lib/postgresql/pgdata/

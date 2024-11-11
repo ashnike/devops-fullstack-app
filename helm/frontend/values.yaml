@@ -1,0 +1,13 @@
+image:
+  repository: ashniike/reactfront
+  tag: "v3"
+  pullPolicy: Always
+
+service:
+  name: frontend
+  type: LoadBalancer
+  targetPort: 3000
+  port: 80
+
+env:
+  REACT_APP_SERVER_URL: "http://a9cd46660a5db41d1a62352e4fef1dff-606104044.ap-south-1.elb.amazonaws.com:8080/employees"

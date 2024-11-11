@@ -1,0 +1,25 @@
+image:
+  repository: ashnnike/backgo
+  tag: "latest"
+  pullPolicy: Always
+
+service:
+  name: db
+  type: LoadBalancer
+  port: 8080
+
+env:
+  DB_HOST: db-db
+  DB_USER: employee_user
+  DB_PASSWORD: password
+  DB_NAME: employee_db
+  DB_PORT: 5432
+  ALLOWED_ORIGIN: "*"
+
+resources:
+  requests:
+    memory: "128Mi"
+    cpu: "500m"
+  limits:
+    memory: "256Mi"
+    cpu: "1"

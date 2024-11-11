@@ -1,0 +1,45 @@
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: {{ .Release.Name }}-db
+  namespace: {{ .Release.Namespace | default "default" }}  # Default to "default" if namespace is not set
+spec:
+  serviceName: {{ .Release.Name }}-db
+  replicas: {{ .Values.replicaCount | default 1 }}  # Ensure a default value
+  selector:
+    matchLabels:
+      app: {{ .Release.Name }}-db
+  template:
+    metadata:
+      labels:
+        app: {{ .Release.Name }}-db
+    spec:
+      containers:
+        - name: db
+          image: {{ .Values.image.repository }}:{{ .Values.image.tag }}
+          env:
+            - name: POSTGRES_USER
+              value: {{ .Values.env.POSTGRES_USER }}
+            - name: POSTGRES_PASSWORD
+              value: {{ .Values.env.POSTGRES_PASSWORD }}
+            - name: POSTGRES_DB
+              value: {{ .Values.env.POSTGRES_DB }}
+            - name: PGDATA
+              value: {{ .Values.env.PGDATA }}
+          ports:
+            - containerPort: {{ .Values.service.port }}
+          volumeMounts:
+            - name: db-storage
+              mountPath: {{ .Values.persistence.mountPath }}
+      # Ensure you include an image pull policy
+      imagePullPolicy: {{ .Values.image.pullPolicy | default "IfNotPresent" }}  # Default pull policy
+  volumeClaimTemplates:
+    - metadata:
+        name: db-storage
+      spec:
+        accessModes:
+          - {{ .Values.persistence.accessMode | quote }}
+        resources:
+          requests:
+            storage: {{ .Values.persistence.size }}
+        storageClassName: {{ .Values.persistence.storageClass | quote }}  # Ensure you specify the storage class
