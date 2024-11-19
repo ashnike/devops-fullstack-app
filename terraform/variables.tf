@@ -6,22 +6,6 @@ variable "vpc_cidr_block" {
   description = "CIDR block for the VPC"
 }
 
-variable "eks_vpc_cidr" {
-  description = "The CIDR block for the EKS VPC."
-  type        = string
-}
-variable "eks_priv_sub" {
-  description = "List of private subnet CIDR blocks"
-  type        = list(string)
-}
-
-variable "eks_pub_sub" {
-  description = "List of public subnet CIDR blocks"
-  type        = list(string)
-}
-
-
-
 variable "public_subnet_cidr_blocks" {
   description = "CIDR blocks for the public subnets"
   type        = list(string)
