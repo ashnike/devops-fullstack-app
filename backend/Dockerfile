@@ -26,7 +26,7 @@ ENV DB_HOST=db \
     DB_USER=employee_user \
     DB_PASSWORD=password \
     DB_NAME=employee_db \
-    ALLOWED_ORIGINS=http://localhost:3000
+    ALLOWED_ORIGINS="*"
 
 # Expose the backend port
 EXPOSE 8080
