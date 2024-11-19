@@ -1,0 +1,55 @@
+- name: Include Kops configuration variables
+  ansible.builtin.include_vars:
+    file: "{{ playbook_dir }}/roles/kops/vars/main.yaml"
+
+- name: Set S3 Kops State Store environment variable
+  ansible.builtin.set_fact:
+    kops_state_store: "{{ kops_state_store }}"
+  environment:
+    KOPS_STATE_STORE: "{{ kops_state_store }}"
+
+- name: Check if the Kops cluster already exists
+  ansible.builtin.shell:
+    cmd: "kops get cluster --name={{ cluster_name }} --state={{ kops_state_store }}"
+  register: check_cluster_exists
+  ignore_errors: yes  # Ignore errors if the cluster does not exist
+
+- name: Create Kops cluster if it doesn't exist
+  ansible.builtin.shell:
+    cmd: >
+      KOPS_STATE_STORE={{ kops_state_store }} kops create cluster
+      --name={{ cluster_name }}
+      --zones={{ zones }}
+      --node-count={{ node_count }}
+      --node-size={{ node_size }}
+      --control-plane-size={{ control_plane_size }}
+      --control-plane-volume-size={{ control_plane_volume_size }}
+      --node-volume-size={{ node_volume_size }}
+  when: check_cluster_exists.rc != 0  # Only create if cluster doesn't exist
+  register: create_cluster_output
+  ignore_errors: no  # Optional: Set to no to stop play if creation fails
+
+- name: Update Kops cluster to apply changes
+  ansible.builtin.shell:
+    cmd: kops update cluster --name={{ cluster_name }} --yes --admin --state={{ kops_state_store }}
+  async: 600  # Allow the task to run for up to 1 hour
+  poll: 10     # Check every 10 seconds to see if the task has completed
+
+- name: Export Kubeconfig for admin access
+  ansible.builtin.shell:
+    cmd: "export KOPS_STATE_STORE={{ kops_state_store }} && kops export kubecfg --admin"
+
+- name: Validate Kops cluster
+  ansible.builtin.shell:
+    cmd: "kops validate cluster --name={{ cluster_name }} --state={{ kops_state_store }} --wait 10m --count 3"
+    
+- name: Export Kubeconfig to Jenkins-specific path
+  ansible.builtin.shell:
+    cmd: "kops export kubecfg --name={{ cluster_name }} --admin --kubeconfig=/var/lib/jenkins/kubeconfig.yaml --state={{ kops_state_store }}"
+
+- name: Ensure Jenkins user has ownership of kubeconfig.yaml
+  ansible.builtin.file:
+    path: /var/lib/jenkins/kubeconfig.yaml
+    owner: jenkins
+    group: jenkins
+    mode: '0644'

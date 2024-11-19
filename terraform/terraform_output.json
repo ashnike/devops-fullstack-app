@@ -1,0 +1,12 @@
+{
+  "jenkins_public_ip": {
+    "sensitive": false,
+    "type": "string",
+    "value": "13.233.179.120"
+  },
+  "private_key_path": {
+    "sensitive": false,
+    "type": "string",
+    "value": "./jenkins.pem"
+  }
+}

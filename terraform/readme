@@ -1,0 +1,28 @@
+Steps to setup Infrastructure and provison it .
+Enter into the environment folder to provison the s3 bucket, S3 is used as a remote storage backend for Terraform state files and DynamoDB is used for state locking and consistency.
+ Use the following commands to provision the backend for our main deployment.
+ // cd environments/backend
+ // terraform init
+ // terraform plan
+// terraform apply --auto-approve
+
+return back to the home directory.Edit the backend with conf with the newly created bucket and dynamo db table.
+//terraform init 
+// terraforn plan
+// terraform apply --auto-approve
+
+use the command terraform output to for the private key location and the jenkins server public ip so that we can configure it with ansible.
+// terraform output -json > terraform_output.json
+
+run the script make sure you give this script executable file.
+// chmod +x ec2.py
+
+run the script using command
+./ec2.py 
+
+this script will popluate the ansible inventory with the neccessary details like ip and loc of the private key.
+After that run the ansible playbook.
+// sudo ansible-playbook -i ansible/inventory/hosts.ini ansible/playbooks/playbook.yml
+
+after running the playbook, you will find jenkins admin passowrd in the ansible/secrets folder , copy it and access the jenkins url .
+Set the jenkins server , install plugins and run the pipeline scripts mentioned in the app folder.

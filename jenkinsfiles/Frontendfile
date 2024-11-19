@@ -1,0 +1,117 @@
+pipeline {
+    agent any
+    tools {
+        nodejs "nodejstool"  // nodejs tool installed on Jenkins using plugin
+    }
+    environment {
+        KUBECONFIG = '/var/lib/jenkins/kubeconfig.yaml'
+        REACT_APP_SERVER_URL = ''
+        DOCKER_EMAIL = ''  // Docker email
+        DOCKER_SERVER = 'https://index.docker.io/v1/'  // Docker Hub registry URL
+        DOCKER_USERNAME = ''  // Docker Hub username
+        DOCKER_REPOSITORY = ''  // Docker repository for frontend
+        IMAGE_TAG = "latest"  // Use the Jenkins build number as the image tag
+        APP_NAME = 'frontend'  // Base name for Helm release
+        K8S_NAMESPACE = 'technoapp'  // Kubernetes namespace
+    }
+
+    stages {
+        stage('Clone Repository') {
+            steps {
+                checkout scmGit(branches: [[name: '*/main']], extensions: [], userRemoteConfigs: [[url: 'https://github.com/ashnike/devops-fullstack-app']])
+            }
+        }
+
+        stage('Install Dependencies and Run Tests') {
+            steps {
+                dir('frontend') {
+                    sh 'npm install'
+                    sh 'npm run test -- --passWithNoTests'
+                }
+            }
+        }
+
+        stage('Login to Docker Hub') {
+            steps {
+                withCredentials([usernamePassword(credentialsId: 'docker-fcred', usernameVariable: 'DOCKER_USERNAME', passwordVariable: 'DOCKER_PASSWORD')]) {
+                    sh 'echo $DOCKER_PASSWORD | docker login $DOCKER_SERVER -u $DOCKER_USERNAME --password-stdin'
+                }
+            }
+        }
+
+        stage('Build Docker Image') {
+            steps {
+                sh 'docker build -t frontend --build-arg REACT_APP_SERVER_URL=${REACT_APP_SERVER_URL} ./frontend'
+            }
+        }
+
+        stage('Trivy Scan') {
+            steps {
+                sh 'trivy image --exit-code 1 --severity HIGH,CRITICAL frontend:latest || true'  // Scan the frontend image for vulnerabilities
+            }
+        }
+
+        stage('Tag Docker Image') {
+            steps {
+                sh "docker tag frontend:latest ${DOCKER_REPOSITORY}:${IMAGE_TAG}"  // Corrected to use DOCKER_REPOSITORY
+            }
+        }
+
+        stage('Push Docker Image to Docker Hub') {
+            steps {
+                sh "docker push ${DOCKER_REPOSITORY}:${IMAGE_TAG}"  // Corrected to use DOCKER_REPOSITORY
+            }
+        }
+
+        stage('Set Kubeconfig from File') {
+            steps {
+                script {
+                    env.KUBECONFIG = '/var/lib/jenkins/kubeconfig.yaml'  // Ensure correct path
+                }
+            }
+        }
+
+        stage('Create Kubernetes Namespace') {
+            steps {
+                script {
+                    // Check if the namespace exists, create if not
+                    sh "kubectl get namespace ${K8S_NAMESPACE} || kubectl create namespace ${K8S_NAMESPACE}"
+                }
+            }
+        }
+
+        stage('Create Docker Registry Secret') {
+            steps {
+                withCredentials([usernamePassword(credentialsId: 'docker-fcred', usernameVariable: 'DOCKERHUB_USERNAME', passwordVariable: 'DOCKERHUB_PASSWORD')]) {
+                    sh """
+                        kubectl create secret docker-registry frontsec1 -n ${K8S_NAMESPACE} --docker-server=${DOCKER_SERVER} --docker-username=$DOCKERHUB_USERNAME --docker-password=$DOCKERHUB_PASSWORD --docker-email=$DOCKER_EMAIL --dry-run=client -o yaml | kubectl apply -f -
+                    """
+                }
+            }
+        }
+
+        stage('Deploy with Helm') {
+            steps {
+                dir('helm') {
+                    script {
+                        // Set Kubeconfig for Helm
+                        env.KUBECONFIG = '/var/lib/jenkins/kubeconfig.yaml'
+
+                        // Deploy the frontend with Helm to Kubernetes
+                        sh "helm upgrade --install ${APP_NAME} ./frontend --set env.REACT_APP_SERVER_URL=${REACT_APP_SERVER_URL} -n ${K8S_NAMESPACE}"
+                    }
+                }
+            }
+        }
+
+        stage('Deploy Ingress Resource') {
+            steps {
+                script {
+                    // Apply the ingress resource to the same Kubernetes namespace
+                    sh "kubectl apply -f helm/frontend-backend-ingress.yaml -n ${K8S_NAMESPACE}"
+                }
+            }
+        }
+    }
+}
+

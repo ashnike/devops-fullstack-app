@@ -1,0 +1,9 @@
+
+- name: Deploy Jenkins and Provision Kops Cluster
+  hosts: jenkins  # Specify the host group for Jenkins server
+  become: yes
+  roles:
+    - role: "jenkins_server"
+      tags: "jenkins_setup"
+    - role: "kops"  # Ensure this matches the role name in the directory
+      tags: "kops_provisioning"

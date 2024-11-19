@@ -1,0 +1,121 @@
+pipeline {
+    agent any
+    tools {
+        go "go"  // go tool installed on Jenkins using plugin
+    }
+    environment {
+        KUBECONFIG = '/var/lib/jenkins/kubeconfig.yaml'
+        DOCKER_EMAIL = ''
+        DOCKER_SERVER = 'https://index.docker.io/v1/'
+        DOCKER_USERNAME = ''
+        DOCKER_REGISTRY = 'docker.io' 
+        DOCKER_REPOSITORY = '' 
+        IMAGE_TAG = 'latest' 
+        APP_NAME = 'backend'              
+        K8S_NAMESPACE = 'technoapp'  
+    }
+
+    stages {
+        stage('Clone Repository') {
+            steps {
+                checkout scmGit(branches: [[name: '*/main']], extensions: [], userRemoteConfigs: [[url: 'https://github.com/ashnike/devops-fullstack-app']])
+            }
+        }
+
+        stage('Install Dependencies') {
+            steps {
+                dir('backend') {
+                    sh 'go mod tidy'
+                }
+            }
+        }
+
+        stage('Login to Docker Hub') {
+            steps {
+                withCredentials([usernamePassword(credentialsId: 'docker-cred', usernameVariable: 'DOCKERHUB_USERNAME', passwordVariable: 'DOCKERHUB_PASSWORD')]) {
+                    sh 'echo $DOCKERHUB_PASSWORD | docker login -u $DOCKERHUB_USERNAME --password-stdin'
+                }
+                echo 'Login Completed'
+            }
+        }
+
+        stage('Build Docker Image') {
+            steps {
+                sh 'docker build -t backend ./backend'
+            }
+        }
+
+        stage('Trivy Scan') {
+            steps {
+                sh 'trivy image --exit-code 1 --severity HIGH,CRITICAL backend:latest || true'
+            }
+        }
+
+        stage('Tag Docker Image') {
+            steps {
+                sh "docker tag backend:latest ${DOCKER_REPOSITORY}:${IMAGE_TAG}"
+            }
+        }
+
+        stage('Push Docker Image to Docker Registry') {
+            steps {
+                sh "docker push ${DOCKER_REPOSITORY}:${IMAGE_TAG}"
+            }
+        }
+
+        stage('Set Kubeconfig from File') {
+            steps {
+                script {
+                    env.KUBECONFIG = '/var/lib/jenkins/kubeconfig.yaml'  // Ensure correct path
+                }
+            }
+        }
+
+        stage('Create Kubernetes Namespace') {
+            steps {
+                sh "kubectl create namespace ${K8S_NAMESPACE} --dry-run=client -o yaml | kubectl apply -f -"
+            }
+        }
+
+        stage('Create Docker Registry Secret') {
+            steps {
+                withCredentials([usernamePassword(credentialsId: 'docker-cred', usernameVariable: 'DOCKERHUB_USERNAME', passwordVariable: 'DOCKERHUB_PASSWORD')]) {
+                    sh """
+                        kubectl create secret docker-registry backsec1 -n${K8S_NAMESPACE} --docker-server=${DOCKER_SERVER} --docker-username=$DOCKERHUB_USERNAME --docker-password=$DOCKERHUB_PASSWORD --docker-email=$DOCKER_EMAIL --dry-run=client -o yaml | kubectl apply -f -
+                    """
+                }
+            }
+        }
+
+        stage('Deploy with Helm') {
+            steps {
+                dir('helm') {
+                    sh "helm upgrade --install ${APP_NAME} ./backend -n ${K8S_NAMESPACE}"
+                }
+            }
+        }
+
+        stage('Get External IP of Backend Service') {
+            steps {
+                script {
+                    def externalLink = ''
+                    timeout(time: 10, unit: 'MINUTES') {
+                        while (externalLink == '') {
+                            externalLink = sh(script: "kubectl get svc backend -n ${K8S_NAMESPACE} -o jsonpath='{.status.loadBalancer.ingress[0].hostname}'", returnStdout: true).trim()
+                            
+                            if (externalLink == '') {
+                                externalLink = sh(script: "kubectl get svc backend -n ${K8S_NAMESPACE} -o jsonpath='{.status.loadBalancer.ingress[0].ip}'", returnStdout: true).trim()
+                            }
+
+                            if (externalLink == '') {
+                                echo "Waiting for external IP or DNS name..."
+                                sleep(30)
+                            }
+                        }
+                    }
+                    echo "Backend service is accessible at http://${externalLink}:8080"
+                }
+            }
+        }
+    }
+}

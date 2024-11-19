@@ -1,0 +1,40 @@
+pipeline {
+    agent any
+
+    environment {
+        KUBECONFIG = '/var/lib/jenkins/kubeconfig.yaml'
+        K8S_NAMESPACE = 'technoapp'  // Kubernetes namespace
+        DB_HELM_CHART = './db'  // Path to your Helm chart for the database
+    }
+    
+    stages {
+        stage('Clone Repository') {
+            steps {
+                checkout scmGit(branches: [[name: '*/main']], extensions: [], userRemoteConfigs: [[url: 'https://github.com/ashnike/devops-fullstack-app']])
+            }
+        }
+
+        stage('Set Kubeconfig from File') {
+            steps {
+                script {
+                    env.KUBECONFIG = '/var/lib/jenkins/kubeconfig.yaml'  
+                }
+            }
+        }
+
+        stage('Create Kubernetes Namespace') {
+            steps {
+                sh "kubectl create namespace ${K8S_NAMESPACE} --dry-run=client -o yaml | kubectl apply -f -"
+            }
+        }
+
+        stage('Install Database with Helm') {
+            steps {
+                dir('helm') {
+                    // Ensure the Helm chart path is correct and install the database
+                    sh "helm upgrade --install db ${DB_HELM_CHART} -n ${K8S_NAMESPACE}"
+                }
+            }
+        }
+    }
+}

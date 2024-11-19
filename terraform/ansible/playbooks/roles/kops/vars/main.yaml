@@ -1,0 +1,9 @@
+# ansible/playbooks/roles/kops/vars/main.yml
+kops_state_store: "s3://kopsbucc"
+cluster_name: "tryhard.k8s.local"
+zones: "ap-south-1a"
+node_count: 1
+node_size: "t3.medium"
+control_plane_size: "t3.small"
+control_plane_volume_size: 10
+node_volume_size: 10
