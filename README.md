@@ -1,6 +1,6 @@
 # Employee Management System as a Micro-service
 ## Architecture Diagram
-![alt text](https://github.com/ashnike/devops-fullstack-app/blob/main/go.png)
+![alt text](https://github.com/ashnike/devops-fullstack-app/blob/main/goo.png)
 
   It's an application to add and view employee Details.
 
